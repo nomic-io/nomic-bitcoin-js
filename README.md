@@ -1,11 +1,11 @@
 <div align="center">
   
-<img src="nbtc.svg" alt="nBTC" width="100" height="100">
+<img src="https://raw.githubusercontent.com/nomic-io/nomic-bitcoin-js/main/nbtc.svg" alt="nBTC" width="100" height="100">
 
   <h1><code>nomic-bitcoin</code></h1>
 
 <strong>A JavaScript library for accepting Bitcoin deposits with Interchain Deposits to any <a
-  href="https://cosmos.network">IBC-enabled blockchain,</a> powered by <a
+  href="https://www.ibcprotocol.dev">IBC-enabled blockchain,</a> powered by <a
   href="https://nomic.io">Nomic</a>.</strong>
 
 </div>
@@ -16,7 +16,7 @@
 npm install nomic-bitcoin
 ```
 
-## Usage
+## Interchain Deposits
 
 ```typescript
 import { generateDepositAddress } from 'nomic-bitcoin'
@@ -44,7 +44,11 @@ console.log(depositInfo)
 Bitcoin sent to `bitcoinAddress` before the expiration date will be automatically IBC-transferred over the specified channel and should appear in the user's account with no further interaction required.
 
 
-![QR code example](qr-code-styling.png)
+### QR code
+
+A QR code similar to the below will be returned in base64 and should be shown on users on desktop devices for ease of use with mobile wallets.
+
+![QR code example](https://raw.githubusercontent.com/nomic-io/nomic-bitcoin-js/main/qr-code-styling.png)
 
 
 ### Capacity limit
