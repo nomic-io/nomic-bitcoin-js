@@ -137,7 +137,7 @@ function deriveNomicAddress(addr: string) {
   return toBech32('nomic', address.data)
 }
 
-type BitcoinNetwork = 'bitcoin' | 'testnet' | 'regtest'
+export type BitcoinNetwork = 'bitcoin' | 'testnet' | 'regtest'
 const oneDaySeconds = 86400
 
 function makeIbcDest(opts: DepositOptions): IbcDest {
@@ -199,7 +199,7 @@ async function getDepositAddress(
   return address
 }
 
-interface DepositOptions {
+export interface DepositOptions {
   relayers: string[]
   channel: string
   receiver: string
@@ -211,7 +211,7 @@ interface DepositOptions {
   successThreshold?: number
 }
 
-interface DepositSuccess {
+export interface DepositSuccess {
   code: 0
   bitcoinAddress: string
   expirationTimeMs: number
@@ -220,17 +220,17 @@ interface DepositSuccess {
   qrCodeData: string
 }
 
-interface DepositFailureOther {
+export interface DepositFailureOther {
   code: 1
   reason: string
 }
 
-interface DepositFailureCapacity {
+export interface DepositFailureCapacity {
   code: 2
   reason: string
 }
 
-type DepositResult =
+export type DepositResult =
   | DepositSuccess
   | DepositFailureOther
   | DepositFailureCapacity
