@@ -55,8 +55,7 @@ If the bridge is over capacity, the response code in `depositInfo` will be `2`.
 
 ```typescript
 let depositInfo = await generateDepositAddress(opts)
-if(depositInfo.code === 2) {
-  let { capacity, utilization } = depositInfo
+if (depositInfo.code === 2) {
   console.error(`Capacity limit reached`)
 }
 ```
@@ -86,9 +85,11 @@ The Nomic bridge will deduct a fee from incoming deposits. The fee rate is curre
 ```typescript
 let depositInfo = await generateDepositAddress(opts)
 if (depositInfo.code === 0) {
-  let { feeRate, bitcoinAddress } = depositInfo
+  let { bridgeFeeRate, minerFeeRate, bitcoinAddress } = depositInfo
   console.log(
-    `The fee rate for deposits to ${bitcoinAddress} is ${feeRate * 100}%`
+    `The fee rate for deposits to ${bitcoinAddress} is ${
+      bridgeFeeRate * 100
+    }% and ${minerFeeRate} sats per byte`
   )
 }
 ```
