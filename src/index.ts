@@ -349,3 +349,20 @@ export async function generateDepositAddress(
     }
   }
 }
+
+export async function generateQRCode(data: string) {
+  let qrCode = create({})
+  qrCode.update({
+    data,
+  })
+  let blob = await qrCode.getRawData('svg')
+  let qrCodeData: string = await new Promise((resolve, reject) => {
+    let reader = new FileReader()
+    reader.readAsDataURL(blob)
+    reader.onloadend = function () {
+      resolve(reader.result as any)
+    }
+  })
+
+  return qrCodeData
+}
