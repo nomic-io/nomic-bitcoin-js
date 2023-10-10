@@ -2,6 +2,7 @@ import * as btc from 'bitcoinjs-lib'
 import { sha256 } from 'bitcoinjs-lib/src/crypto'
 import { fromBech32, toBech32 } from '@cosmjs/encoding'
 import { create } from './qrcode'
+import { Buffer } from 'buffer'
 
 interface SigSet {
   signatories: Array<{ voting_power: number; pubkey: number[] }>
