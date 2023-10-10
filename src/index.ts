@@ -131,7 +131,7 @@ async function broadcast(
   )
 }
 
-function deriveNomicAddress(addr: string) {
+export function deriveNomicAddress(addr: string) {
   let address = fromBech32(addr)
 
   return toBech32('nomic', address.data)
