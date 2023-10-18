@@ -46,9 +46,14 @@ Bitcoin sent to `bitcoinAddress` before the expiration date will be automaticall
 
 ### QR code
 
-A QR code similar to the below will be returned in base64 and should be shown on users on desktop devices for ease of use with mobile wallets.
+A QR code similar to the below will be returned as a base64 data URL string and should be shown to users on desktop devices for ease of use with mobile wallets.
 
 ![QR code example](https://raw.githubusercontent.com/nomic-io/nomic-bitcoin-js/main/qr-code-styling.png)
+
+The returned data URL can be used as the `src` attribute on `img` elements:
+```jsx
+<img src={qrCodeData} />
+```
 
 
 ### Capacity limit
