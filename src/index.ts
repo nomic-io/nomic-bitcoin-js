@@ -145,7 +145,8 @@ function makeIbcDest(opts: DepositOptions): IbcDest {
   let now = Date.now()
   let timeoutTimestampMs
   if (typeof opts.transferTimeoutOffsetSeconds === 'undefined') {
-    timeoutTimestampMs = now + oneDaySeconds * 1000 - (now % (60 * 60 * 1000))
+    timeoutTimestampMs =
+      now + oneDaySeconds * 5 * 1000 - (now % (60 * 60 * 1000))
   } else {
     timeoutTimestampMs = now + opts.transferTimeoutOffsetSeconds * 1000
   }
