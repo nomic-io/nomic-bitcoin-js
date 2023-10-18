@@ -295,7 +295,26 @@ export async function generateDepositAddress(
       opts.relayers.length * successThreshold
     )
 
-    let ibcDestBytes = encode(makeIbcDest(opts))
+    let ibcDest = makeIbcDest(opts)
+
+    if (ibcDest.memo.length > 255) {
+      throw new Error('Memo must be less than 256 characters')
+    }
+
+    if (!ibcDest.sender.startsWith('nomic1')) {
+      throw new Error('Sender must be a Nomic address')
+    }
+
+    let parts = ibcDest.sourceChannel.split('-')
+    if (
+      parts.length !== 2 ||
+      parts[0] !== 'channel' ||
+      isNaN(Number(parts[1]))
+    ) {
+      throw new Error('Invalid source channel')
+    }
+
+    let ibcDestBytes = encode(ibcDest)
 
     let consensusRelayerResponse: string = await consensusReq(
       opts.relayers,
