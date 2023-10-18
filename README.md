@@ -22,7 +22,7 @@ npm install nomic-bitcoin
 import { generateDepositAddress } from 'nomic-bitcoin'
 
 let depositInfo = await generateDepositAddress({
-  relayers: ['https://testnet-relayer.nomic.io:8443'],
+  relayers: ['https://relayer.nomic-testnet.mappum.io:8443'],
   channel: 'channel-0', // IBC channel ID on Nomic
   network: 'testnet',
   receiver: 'cosmos1...', // bech32 address of the depositing user
