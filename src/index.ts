@@ -21,6 +21,24 @@ interface IbcDest {
   memo: string
 }
 
+interface PendingDeposit {
+  deposit: {
+    txid: string
+    vout: number
+    amount: number
+    height: number | null
+  }
+  confirmations: number
+}
+
+export interface DepositInfo {
+  txid: string
+  vout: number
+  amount: number
+  height: number | null
+  confirmations: number
+}
+
 function encode(dest: IbcDest) {
   let buf = Buffer.from([dest.sourcePort.length])
   buf = Buffer.concat([buf, Buffer.from(dest.sourcePort)])
@@ -52,6 +70,28 @@ function presentVp(sigset: SigSet) {
 
 async function getSigset(relayer: string) {
   return await fetch(`${relayer}/sigset`).then((res) => res.text())
+}
+
+export async function getPendingDeposits(
+  relayers: string[],
+  receiver: string
+): Promise<DepositInfo[]> {
+  let relayer = relayers[Math.floor(Math.random() * relayers.length)]
+  let info: PendingDeposit[] = await fetch(
+    `${relayer}/pending_deposits?receiver=${receiver}`
+  ).then((res) => res.json())
+  let deposits: DepositInfo[] = []
+  for (let { deposit, confirmations } of info) {
+    deposits.push({
+      confirmations,
+      txid: deposit.txid,
+      vout: deposit.vout,
+      amount: deposit.amount,
+      height: deposit.height,
+    })
+  }
+
+  return deposits
 }
 
 function clz64(n: bigint) {
