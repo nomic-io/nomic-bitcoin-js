@@ -10,6 +10,7 @@ interface SigSet {
   bridgeFeeRate: number
   minerFeeRate: number // sats per deposit
   depositsEnabled: boolean
+  threshold: [number, number]
 }
 
 interface IbcDest {
@@ -123,6 +124,7 @@ function op(name: string) {
 
 function redeemScript(sigset: SigSet, dest: Buffer) {
   let truncation = BigInt(getTruncation(sigset, 23))
+  let [numerator, denominator] = sigset.threshold
 
   let firstSig = sigset.signatories[0]
   let truncatedVp = BigInt(firstSig.voting_power) >> truncation
@@ -148,7 +150,9 @@ function redeemScript(sigset: SigSet, dest: Buffer) {
     script.push(op('OP_ENDIF'))
   }
 
-  let truncatedThreshold = ((presentVp(sigset) * 9n) / 10n) >> truncation
+  let truncatedThreshold =
+    ((presentVp(sigset) * BigInt(numerator)) / BigInt(denominator)) >>
+    truncation
   script.push(pushInt(truncatedThreshold))
   script.push(op('OP_GREATERTHAN'))
   script.push(dest)
