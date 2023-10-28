@@ -245,24 +245,42 @@ async function getDepositAddress(
   return address
 }
 
-export interface DepositOptions {
+export interface ConsensusOptions {
   relayers: string[]
+  requestTimeoutMs?: number
+  successThreshold?: number
+}
+
+export interface IbcOptions {
   channel: string
   receiver: string
   sender?: string
-  requestTimeoutMs?: number
   transferTimeoutOffsetSeconds?: number
   memo?: string
-  network?: BitcoinNetwork
-  successThreshold?: number
 }
+
+export interface DepositOptions extends ConsensusOptions, IbcOptions {
+  network?: BitcoinNetwork
+}
+
+export interface FeeInfo {
+  bridgeFeeRate: number
+  minerFeeRate: number // sats per deposit
+}
+
+export interface FeeFailureOther {
+  code: 1
+  reason: string
+}
+
+export type FeeResult =
+  | FeeInfo & { code: 0 }
+  | FeeFailureOther
 
 export interface DepositSuccess {
   code: 0
   bitcoinAddress: string
   expirationTimeMs: number
-  bridgeFeeRate: number
-  minerFeeRate: number // sats per deposit
   qrCodeData: string
 }
 
@@ -277,7 +295,7 @@ export interface DepositFailureCapacity {
 }
 
 export type DepositResult =
-  | DepositSuccess
+  | DepositSuccess & FeeInfo
   | DepositFailureOther
   | DepositFailureCapacity
 
@@ -325,19 +343,21 @@ function consensusReq(
   })
 }
 
+function getSuccessThresholdCount(relayers: string[], successThreshold: number = 2 / 3): number {
+    if (successThreshold <= 0 || successThreshold > 1) {
+      throw new Error('opts.successThreshold must be between 0 - 1')
+    }
+    return Math.round(
+      relayers.length * successThreshold
+    );
+}
+
 export async function generateDepositAddress(
   opts: DepositOptions
 ): Promise<DepositResult> {
   try {
     let requestTimeoutMs = opts.requestTimeoutMs || 20_000
-    let successThreshold =
-      typeof opts.successThreshold === 'number' ? opts.successThreshold : 2 / 3
-    if (successThreshold <= 0 || successThreshold > 1) {
-      throw new Error('opts.successThreshold must be between 0 - 1')
-    }
-    let successThresholdCount = Math.round(
-      opts.relayers.length * successThreshold
-    )
+    let successThresholdCount = getSuccessThresholdCount(opts.relayers, opts.successThreshold);
 
     let ibcDest = makeIbcDest(opts)
 
@@ -429,4 +449,29 @@ export async function generateQRCode(data: string) {
   })
 
   return qrCodeData
+}
+
+export async function getFeeInfo(opts: ConsensusOptions): Promise<FeeResult> {
+  try {
+    let requestTimeoutMs = opts.requestTimeoutMs || 20_000
+    let successThresholdCount = getSuccessThresholdCount(opts.relayers, opts.successThreshold);
+    let consensusRelayerResponse: string = await consensusReq(
+      opts.relayers,
+      successThresholdCount,
+      requestTimeoutMs,
+      getSigset
+    )
+    let sigset = JSON.parse(consensusRelayerResponse) as SigSet
+
+    return {
+      code: 0,
+      bridgeFeeRate: sigset.bridgeFeeRate,
+      minerFeeRate: sigset.minerFeeRate,
+    }
+  } catch (e: any) {
+    return {
+      code: 1,
+      reason: e.toString(),
+    }
+  }
 }
