@@ -107,6 +107,17 @@ Additionally, a small fixed fee will deducted by Bitcoin miners before the depos
 
 These fees should be communicated clearly to the user as "Bridge fee" (a percentage) and "Bitcoin miner fee" respectively.
 
+### Pending deposits
+
+You can query all pending deposits by receiver address with `getPendingDeposits`:
+
+```typescript
+import { getPendingDeposits } from 'nomic-bitcoin'
+
+let pendingDeposits = await getPendingDeposits(relayers, address)
+console.log(pendingDeposits) // [{ confirmations: 2, txid: '...', vout: 1, amount: 100000, height: 812000 }]
+```
+
 ### Usage guidelines
 
 - Include multiple relayers. See [the Nomic docs](https://github.com/nomic-io/nomic) for information about running a relayer.
