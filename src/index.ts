@@ -1,7 +1,7 @@
 import * as btc from 'bitcoinjs-lib'
 import { sha256 } from 'bitcoinjs-lib/src/crypto'
 import { fromBech32, toBech32 } from '@cosmjs/encoding'
-import { create } from './qrcode'
+import { create } from './qrcode.browser'
 import { Buffer } from 'buffer'
 
 interface SigSet {
@@ -385,7 +385,7 @@ export async function generateDepositAddress(
     )
 
     // generate QR code base64
-    let qrCode = create({})
+    let qrCode = await create({})
     qrCode.update({
       data: consensusDepositAddress,
     })
@@ -415,7 +415,7 @@ export async function generateDepositAddress(
 }
 
 export async function generateQRCode(data: string) {
-  let qrCode = create({})
+  let qrCode = await create({})
   qrCode.update({
     data,
   })
