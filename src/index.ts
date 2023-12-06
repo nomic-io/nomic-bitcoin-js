@@ -1,7 +1,6 @@
 import * as btc from 'bitcoinjs-lib'
 import { sha256 } from 'bitcoinjs-lib/src/crypto'
 import { fromBech32, toBech32 } from '@cosmjs/encoding'
-import { create } from './qrcode'
 import { Buffer } from 'buffer'
 
 interface SigSet {
@@ -326,7 +325,8 @@ function consensusReq(
 }
 
 export async function generateDepositAddress(
-  opts: DepositOptions
+  opts: DepositOptions,
+  isRenderQr: boolean = true
 ): Promise<DepositResult> {
   try {
     let requestTimeoutMs = opts.requestTimeoutMs || 20_000
@@ -345,7 +345,7 @@ export async function generateDepositAddress(
       throw new Error('Memo must be less than 256 characters')
     }
 
-    if (!ibcDest.sender.startsWith('nomic1')) {
+    if (!ibcDest.sender.startsWith('oraibtc')) {
       throw new Error('Sender must be a Nomic address')
     }
 
@@ -384,27 +384,23 @@ export async function generateDepositAddress(
       }
     )
 
-    // generate QR code base64
-    let qrCode = create({})
-    qrCode.update({
-      data: consensusDepositAddress,
-    })
-    let blob = await qrCode.getRawData('svg')
-    let qrCodeData: string = await new Promise((resolve, reject) => {
-      let reader = new FileReader()
-      reader.readAsDataURL(blob)
-      reader.onloadend = function () {
-        resolve(reader.result as any)
+    let qrCodeData: string = ""
+    
+    if (isRenderQr) {
+      try {
+        const { generateQRCode } = await import("./qrcode");
+        qrCodeData = await generateQRCode(consensusDepositAddress);
       }
-    })
-
+      catch(err) {}
+    }
+    
     return {
       code: 0,
       bitcoinAddress: consensusDepositAddress,
       expirationTimeMs: Date.now() + 5 * oneDaySeconds * 1000,
       bridgeFeeRate: sigset.bridgeFeeRate,
       minerFeeRate: sigset.minerFeeRate,
-      qrCodeData,
+      qrCodeData: "",
     }
   } catch (e: any) {
     return {
@@ -412,21 +408,4 @@ export async function generateDepositAddress(
       reason: e.toString(),
     }
   }
-}
-
-export async function generateQRCode(data: string) {
-  let qrCode = create({})
-  qrCode.update({
-    data,
-  })
-  let blob = await qrCode.getRawData('svg')
-  let qrCodeData: string = await new Promise((resolve, reject) => {
-    let reader = new FileReader()
-    reader.readAsDataURL(blob)
-    reader.onloadend = function () {
-      resolve(reader.result as any)
-    }
-  })
-
-  return qrCodeData
 }

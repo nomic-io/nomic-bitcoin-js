@@ -15,7 +15,8 @@ const sampleGetDepositAddress = async () => {
   } as DepositOptions;
 
   const btcAddressToDeposit = (await generateDepositAddress(
-    config
+    config,
+    false
   )) as DepositSuccess;
 
   console.log("BTC Address To Deposit For Bridging: ", btcAddressToDeposit);
