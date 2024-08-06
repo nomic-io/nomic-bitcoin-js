@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc",
     "test": "",
-    "prepublishOnly": "npm run build"
+    "prepare": "npm run build"
   },
   "keywords": [],
   "author": "Nomic",
