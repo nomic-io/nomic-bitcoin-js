@@ -414,8 +414,12 @@ export async function generateDepositAddress(
   }
 }
 
-export async function generateQRCode(data: string) {
-  let qrCode = await create({})
+
+export  * as style from './style'
+import { NOMIC } from './style'
+
+export async function generateQRCode(data: string, style: any = NOMIC) {
+  let qrCode = await create(style)
   qrCode.update({
     data,
   })
