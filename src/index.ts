@@ -238,10 +238,9 @@ async function getDepositAddress(
   relayer: string,
   sigset: SigSet,
   network: BitcoinNetwork | undefined,
-  destBytes: Buffer,
-  prefixBytes: Buffer,
+  commitmentBytes: Buffer,
+  broadcastBytes: Buffer,
 ) {
-  let commitmentBytes = sha256(destBytes)
   let script = redeemScript(sigset, commitmentBytes)
   let { address } = btc.payments.p2wsh({
     redeem: { output: script, redeemVersion: 0 },
@@ -251,8 +250,7 @@ async function getDepositAddress(
     throw new Error('Failed to generate deposit address')
   }
 
-  let dest = Buffer.concat([prefixBytes, destBytes])
-  let res = await broadcast(relayer, address, sigset.index, dest)
+  let res = await broadcast(relayer, address, sigset.index, broadcastBytes)
 
   if (!res.ok) {
     throw new Error(await res.text())
@@ -270,8 +268,8 @@ export interface IbcDepositOptions {
 }
 
 export interface RawDepositOptions {
-  destBytes: Buffer
-  prefixBytes: Buffer
+  commitmentBytes: Buffer
+  broadcastBytes: Buffer
 }
 
 export interface BaseDepositOptions {
@@ -379,8 +377,8 @@ async function getConsensusSigset(opts: BaseDepositOptions) {
 
 async function generateAndBroadcast(
   opts: BaseDepositOptions,
-  prefix: Buffer,
-  bytes: Buffer,
+  commitmentBytes: Buffer,
+  broadcastBytes: Buffer,
 ): Promise<DepositResult> {
   try {
     let sigset = await getConsensusSigset(opts)
@@ -397,7 +395,13 @@ async function generateAndBroadcast(
       successThresholdCount,
       requestTimeoutMs,
       (relayer: string) => {
-        return getDepositAddress(relayer, sigset, opts.network, bytes, prefix)
+        return getDepositAddress(
+          relayer,
+          sigset,
+          opts.network,
+          commitmentBytes,
+          broadcastBytes,
+        )
       },
     )
 
@@ -424,7 +428,10 @@ export async function generateDepositAddressIbc(
 
     let ibcDestBytes = encode(ibcDest)
 
-    return await generateAndBroadcast(opts, Buffer.from([1]), ibcDestBytes)
+    let commitmentBytes = sha256(ibcDestBytes)
+    let broadcastBytes = Buffer.concat([Buffer.from([1]), ibcDestBytes])
+
+    return await generateAndBroadcast(opts, commitmentBytes, broadcastBytes)
   } catch (e) {
     return {
       code: 1,
@@ -436,7 +443,11 @@ export async function generateDepositAddressIbc(
 export async function generateDepositAddressRaw(
   opts: BaseDepositOptions & RawDepositOptions,
 ): Promise<DepositResult> {
-  return await generateAndBroadcast(opts, opts.prefixBytes, opts.destBytes)
+  return await generateAndBroadcast(
+    opts,
+    opts.commitmentBytes,
+    opts.broadcastBytes,
+  )
 }
 
 export * as style from './style'
