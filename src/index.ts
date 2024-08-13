@@ -1,7 +1,7 @@
 import * as btc from 'bitcoinjs-lib'
 import { sha256 } from 'bitcoinjs-lib/src/crypto'
 import { fromBech32, toBech32 } from '@cosmjs/encoding'
-import { create } from './qrcode.browser'
+import { create } from './qrcode'
 import { Buffer } from 'buffer'
 
 interface SigSet {
@@ -420,7 +420,7 @@ async function generateAndBroadcast(
   }
 }
 
-export async function generateDepositAddressIbc(
+export async function generateDepositAddress(
   opts: BaseDepositOptions & IbcDepositOptions,
 ): Promise<DepositResult> {
   try {
