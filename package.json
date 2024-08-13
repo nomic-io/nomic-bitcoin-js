@@ -1,13 +1,13 @@
 {
   "name": "nomic-bitcoin",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "A JavaScript library for accepting Bitcoin deposits with Interchain Deposits to any IBC-enabled blockchain, powered by Nomic.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
     "test": "",
-    "prepublishOnly": "npm run build"
+    "prepare": "npm run build"
   },
   "keywords": [],
   "author": "Nomic",
@@ -22,5 +22,9 @@
   "devDependencies": {
     "@types/node": "^20.6.1",
     "typescript": "^5.2.2"
+  },
+  "browser": {
+    "./src/qrcode.ts": "./src/qrcode.browser.ts",
+    "./dist/qrcode.js": "./dist/qrcode.browser.js"
   }
 }

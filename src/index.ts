@@ -65,7 +65,7 @@ function encode(dest: IbcDest) {
 function presentVp(sigset: SigSet) {
   return sigset.signatories.reduce(
     (acc, cur) => acc + BigInt(cur.voting_power),
-    0n
+    0n,
   )
 }
 
@@ -75,11 +75,11 @@ async function getSigset(relayer: string) {
 
 export async function getPendingDeposits(
   relayers: string[],
-  receiver: string
+  receiver: string,
 ): Promise<DepositInfo[]> {
   let relayer = relayers[Math.floor(Math.random() * relayers.length)]
   let info: PendingDeposit[] = await fetch(
-    `${relayer}/pending_deposits?receiver=${receiver}`
+    `${relayer}/pending_deposits?receiver=${receiver}`,
   ).then((res) => res.json())
   let deposits: DepositInfo[] = []
   for (let { deposit, confirmations } of info) {
@@ -165,14 +165,14 @@ async function broadcast(
   relayer: string,
   depositAddr: string,
   sigsetIndex: number,
-  dest: Buffer
+  dest: Buffer,
 ) {
   return await fetch(
     `${relayer}/address?deposit_addr=${depositAddr}&sigset_index=${sigsetIndex}`,
     {
       method: 'POST',
       body: dest,
-    }
+    },
   )
 }
 
@@ -185,7 +185,7 @@ export function deriveNomicAddress(addr: string) {
 export type BitcoinNetwork = 'bitcoin' | 'testnet' | 'regtest'
 const oneDaySeconds = 86400
 
-function makeIbcDest(opts: DepositOptions): IbcDest {
+function makeIbcDest(opts: IbcDepositOptions): IbcDest {
   let now = Date.now()
   let timeoutTimestampMs
   if (typeof opts.transferTimeoutOffsetSeconds === 'undefined') {
@@ -197,7 +197,7 @@ function makeIbcDest(opts: DepositOptions): IbcDest {
 
   const timeoutTimestamp = BigInt(timeoutTimestampMs) * 1000000n
 
-  return {
+  let ibcDest = {
     sourceChannel: opts.channel,
     sourcePort: 'transfer',
     receiver: opts.receiver,
@@ -205,6 +205,21 @@ function makeIbcDest(opts: DepositOptions): IbcDest {
     memo: opts.memo || '',
     timeoutTimestamp,
   }
+
+  if (ibcDest.memo.length > 255) {
+    throw new Error('Memo must be less than 256 characters')
+  }
+
+  if (!ibcDest.sender.startsWith('nomic1')) {
+    throw new Error('Sender must be a Nomic address')
+  }
+
+  let parts = ibcDest.sourceChannel.split('-')
+  if (parts.length !== 2 || parts[0] !== 'channel' || isNaN(Number(parts[1]))) {
+    throw new Error('Invalid source channel')
+  }
+
+  return ibcDest
 }
 
 function toNetwork(network: BitcoinNetwork | undefined) {
@@ -223,9 +238,9 @@ async function getDepositAddress(
   relayer: string,
   sigset: SigSet,
   network: BitcoinNetwork | undefined,
-  ibcDestBytes: Buffer
+  commitmentBytes: Buffer,
+  broadcastBytes: Buffer,
 ) {
-  let commitmentBytes = sha256(ibcDestBytes)
   let script = redeemScript(sigset, commitmentBytes)
   let { address } = btc.payments.p2wsh({
     redeem: { output: script, redeemVersion: 0 },
@@ -235,8 +250,7 @@ async function getDepositAddress(
     throw new Error('Failed to generate deposit address')
   }
 
-  let dest = Buffer.concat([Buffer.from([1]), ibcDestBytes])
-  let res = await broadcast(relayer, address, sigset.index, dest)
+  let res = await broadcast(relayer, address, sigset.index, broadcastBytes)
 
   if (!res.ok) {
     throw new Error(await res.text())
@@ -245,17 +259,28 @@ async function getDepositAddress(
   return address
 }
 
-export interface DepositOptions {
-  relayers: string[]
+export interface IbcDepositOptions {
   channel: string
   receiver: string
   sender?: string
-  requestTimeoutMs?: number
   transferTimeoutOffsetSeconds?: number
   memo?: string
+}
+
+export interface RawDepositOptions {
+  commitmentBytes: Buffer
+  broadcastBytes: Buffer
+}
+
+export interface BaseDepositOptions {
+  relayers: string[]
+  requestTimeoutMs?: number
   network?: BitcoinNetwork
   successThreshold?: number
 }
+
+export type DepositOptions = BaseDepositOptions &
+  (IbcDepositOptions | RawDepositOptions)
 
 export interface DepositSuccess {
   code: 0
@@ -263,7 +288,6 @@ export interface DepositSuccess {
   expirationTimeMs: number
   bridgeFeeRate: number
   minerFeeRate: number // sats per deposit
-  qrCodeData: string
 }
 
 export interface DepositFailureOther {
@@ -294,7 +318,7 @@ function consensusReq(
   relayers: string[],
   successThreshold: number,
   timeoutMs: number,
-  f: any
+  f: any,
 ): Promise<any> {
   return new Promise((resolve, reject) => {
     let responseCount = 0
@@ -319,55 +343,45 @@ function consensusReq(
           console.log(`${relayer}: ${err}`)
           responseCount += 1
           maybeReject()
-        }
+        },
       )
     }
   })
 }
 
-export async function generateDepositAddress(
-  opts: DepositOptions
+function parseBaseOptions(opts: BaseDepositOptions) {
+  let requestTimeoutMs = opts.requestTimeoutMs || 20_000
+  let successThreshold =
+    typeof opts.successThreshold === 'number' ? opts.successThreshold : 2 / 3
+  if (successThreshold <= 0 || successThreshold > 1) {
+    throw new Error('opts.successThreshold must be between 0 - 1')
+  }
+  let successThresholdCount = Math.round(
+    opts.relayers.length * successThreshold,
+  )
+
+  return { requestTimeoutMs, successThresholdCount }
+}
+
+async function getConsensusSigset(opts: BaseDepositOptions) {
+  let { requestTimeoutMs, successThresholdCount } = parseBaseOptions(opts)
+  let consensusRelayerResponse: string = await consensusReq(
+    opts.relayers,
+    successThresholdCount,
+    requestTimeoutMs,
+    getSigset,
+  )
+
+  return JSON.parse(consensusRelayerResponse) as SigSet
+}
+
+async function generateAndBroadcast(
+  opts: BaseDepositOptions,
+  commitmentBytes: Buffer,
+  broadcastBytes: Buffer,
 ): Promise<DepositResult> {
   try {
-    let requestTimeoutMs = opts.requestTimeoutMs || 20_000
-    let successThreshold =
-      typeof opts.successThreshold === 'number' ? opts.successThreshold : 2 / 3
-    if (successThreshold <= 0 || successThreshold > 1) {
-      throw new Error('opts.successThreshold must be between 0 - 1')
-    }
-    let successThresholdCount = Math.round(
-      opts.relayers.length * successThreshold
-    )
-
-    let ibcDest = makeIbcDest(opts)
-
-    if (ibcDest.memo.length > 255) {
-      throw new Error('Memo must be less than 256 characters')
-    }
-
-    if (!ibcDest.sender.startsWith('nomic1')) {
-      throw new Error('Sender must be a Nomic address')
-    }
-
-    let parts = ibcDest.sourceChannel.split('-')
-    if (
-      parts.length !== 2 ||
-      parts[0] !== 'channel' ||
-      isNaN(Number(parts[1]))
-    ) {
-      throw new Error('Invalid source channel')
-    }
-
-    let ibcDestBytes = encode(ibcDest)
-
-    let consensusRelayerResponse: string = await consensusReq(
-      opts.relayers,
-      successThresholdCount,
-      requestTimeoutMs,
-      getSigset
-    )
-    let sigset = JSON.parse(consensusRelayerResponse) as SigSet
-
+    let sigset = await getConsensusSigset(opts)
     if (!sigset.depositsEnabled) {
       return {
         code: 2,
@@ -375,28 +389,21 @@ export async function generateDepositAddress(
       }
     }
 
+    let { requestTimeoutMs, successThresholdCount } = parseBaseOptions(opts)
     let consensusDepositAddress: string = await consensusReq(
       opts.relayers,
       successThresholdCount,
       requestTimeoutMs,
       (relayer: string) => {
-        return getDepositAddress(relayer, sigset, opts.network, ibcDestBytes)
-      }
+        return getDepositAddress(
+          relayer,
+          sigset,
+          opts.network,
+          commitmentBytes,
+          broadcastBytes,
+        )
+      },
     )
-
-    // generate QR code base64
-    let qrCode = create({})
-    qrCode.update({
-      data: consensusDepositAddress,
-    })
-    let blob = await qrCode.getRawData('svg')
-    let qrCodeData: string = await new Promise((resolve, reject) => {
-      let reader = new FileReader()
-      reader.readAsDataURL(blob)
-      reader.onloadend = function () {
-        resolve(reader.result as any)
-      }
-    })
 
     return {
       code: 0,
@@ -404,18 +411,50 @@ export async function generateDepositAddress(
       expirationTimeMs: Date.now() + 5 * oneDaySeconds * 1000,
       bridgeFeeRate: sigset.bridgeFeeRate,
       minerFeeRate: sigset.minerFeeRate,
-      qrCodeData,
     }
-  } catch (e: any) {
+  } catch (e) {
     return {
       code: 1,
-      reason: e.toString(),
+      reason: (e as any).toString(),
     }
   }
 }
 
-export async function generateQRCode(data: string) {
-  let qrCode = create({})
+export async function generateDepositAddress(
+  opts: BaseDepositOptions & IbcDepositOptions,
+): Promise<DepositResult> {
+  try {
+    let ibcDest = makeIbcDest(opts)
+
+    let ibcDestBytes = encode(ibcDest)
+
+    let commitmentBytes = sha256(ibcDestBytes)
+    let broadcastBytes = Buffer.concat([Buffer.from([1]), ibcDestBytes])
+
+    return await generateAndBroadcast(opts, commitmentBytes, broadcastBytes)
+  } catch (e) {
+    return {
+      code: 1,
+      reason: (e as any).toString(),
+    }
+  }
+}
+
+export async function generateDepositAddressRaw(
+  opts: BaseDepositOptions & RawDepositOptions,
+): Promise<DepositResult> {
+  return await generateAndBroadcast(
+    opts,
+    opts.commitmentBytes,
+    opts.broadcastBytes,
+  )
+}
+
+export * as style from './style'
+import { NBTC } from './style'
+
+export async function generateQRCode(data: string, style: any = NBTC) {
+  let qrCode = await create(style)
   qrCode.update({
     data,
   })
