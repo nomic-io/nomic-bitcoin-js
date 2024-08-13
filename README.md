@@ -36,7 +36,6 @@ console.log(depositInfo)
   expirationTimeMs: 1624296000000,
   bridgeFeeRate: 0.015,
   minerFeeRate: 0.0001,
-  qrCodeData: "data:image/svg+xml;base64,...",
 }
 */
 ```
@@ -47,6 +46,12 @@ Bitcoin sent to `bitcoinAddress` before the expiration date will be automaticall
 ### QR code
 
 A QR code similar to the below will be returned as a base64 data URL string and should be shown to users on desktop devices for ease of use with mobile wallets.
+
+```typescript
+import { generateQRCode } from 'nomic-bitcoin'
+
+const qrCode = await generateQRCode(depositInfo.bitcoinAddress);
+```
 
 ![QR code example](https://raw.githubusercontent.com/nomic-io/nomic-bitcoin-js/main/qr-code-styling.png)
 
