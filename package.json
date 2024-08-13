@@ -24,6 +24,7 @@
     "typescript": "^5.2.2"
   },
   "browser": {
-    "./src/qrcode.ts": "./src/qrcode.browser.ts"
+    "./src/qrcode.ts": "./src/qrcode.browser.ts",
+    "./dist/qrcode.js": "./dist/qrcode.browser.js"
   }
 }
