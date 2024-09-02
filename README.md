@@ -108,7 +108,7 @@ if (depositInfo.code === 0) {
 }
 ```
 
-Additionally, a small fixed fee will deducted by Bitcoin miners before the deposit is processed.
+Additionally, a small fixed fee will be deducted by Bitcoin miners before the deposit is processed.
 
 These fees should be communicated clearly to the user as "Bridge fee" (a percentage) and "Bitcoin miner fee" respectively.
 
@@ -132,4 +132,4 @@ console.log(pendingDeposits) // [{ confirmations: 2, txid: '...', vout: 1, amoun
 
 ## Status
 
-Interchain Deposits and Withdrawls will be enabled in a release pushing October 27, 2023 with an estimated activation on October 30, 2023.
+Interchain Deposits and Withdrawals will be enabled in a release pushing October 27, 2023 with an estimated activation on October 30, 2023.
