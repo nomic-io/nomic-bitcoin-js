@@ -25,12 +25,12 @@ npm install nomic-bitcoin
 ### nBTC on IBC-Compatible Chains
 
 ```typescript
-import { generateDepositAddress } from 'nomic-bitcoin'
+import { generateDepositAddressIbc } from 'nomic-bitcoin'
 
-let depositInfo = await generateDepositAddress({
+let depositInfo = await generateDepositAddressIbc({
   relayers: ['https://my-bitcoin-relayer.example.com:1234'],
   channel: 'channel-0', // IBC channel ID on Nomic
-  network: 'testnet',
+  bitcoinNetwork: 'testnet',
   receiver: 'cosmos1...', // bech32 address of the depositing user
 })
 
@@ -56,8 +56,8 @@ import { generateDepositAddressEth } from 'nomic-bitcoin'
 let depositInfo = await generateDepositAddressEth({
   relayers: ['https://my-bitcoin-relayer.example.com:1234'],
   bitcoinNetwork: 'testnet',
+  ethereumNetwork: 'sepolia',
   receiver: '0x...', // an Ethereum address
-
 })
 
 console.log(depositInfo)
@@ -98,7 +98,7 @@ The bridge currently has a capacity limit, which is the maximum amount of BTC th
 If the bridge is over capacity, the response code in `depositInfo` will be `2`.
 
 ```typescript
-let depositInfo = await generateDepositAddress(opts)
+let depositInfo = await generateDepositAddressIbc(opts)
 if (depositInfo.code === 2) {
   console.error(`Capacity limit reached`)
 }
@@ -111,7 +111,7 @@ Partner chains should communicate clearly to the user that a deposit address cou
 When a deposit address is successfully generated, an expiration time in milliseconds is returned in `depositInfo`.
 
 ```typescript
-let depositInfo = await generateDepositAddress(opts)
+let depositInfo = await generateDepositAddressIbc(opts)
 if (depositInfo.code === 0) {
   let { expirationTimeMs, bitcoinAddress } = depositInfo
   console.log(
@@ -128,7 +128,7 @@ if (depositInfo.code === 0) {
 The Nomic bridge will deduct a fee from incoming deposits. The fee rate is currently a percentage of the deposit amount, and is returned in `depositInfo`.
 
 ```typescript
-let depositInfo = await generateDepositAddress(opts)
+let depositInfo = await generateDepositAddressIbc(opts)
 if (depositInfo.code === 0) {
   let { bridgeFeeRate, minerFeeRate, bitcoinAddress } = depositInfo
   console.log(
