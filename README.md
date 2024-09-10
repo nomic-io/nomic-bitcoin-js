@@ -1,11 +1,15 @@
 <div align="center">
-  
-<img src="https://raw.githubusercontent.com/nomic-io/nomic-bitcoin-js/main/nbtc.svg" alt="nBTC" width="100" height="100">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/nomic-io/nomic/develop/nomic-logo-dark-100.png">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/nomic-io/nomic/develop/nomic-logo-100.png">
+  <img alt="Nomic" src="https://raw.githubusercontent.com/nomic-io/nomic/develop/nomic-logo-100.png">
+</picture>
 
   <h1><code>nomic-bitcoin</code></h1>
 
-<strong>A JavaScript library for accepting Bitcoin deposits with Interchain Deposits to any <a
-  href="https://www.ibcprotocol.dev">IBC-enabled blockchain,</a> powered by <a
+<strong>A JavaScript library for accepting Bitcoin deposits with Interchain Deposits to any EVM-based or <a
+  href="https://www.ibcprotocol.dev">IBC-compatible</a> blockchain, powered by <a
   href="https://nomic.io">Nomic</a>.</strong>
 
 </div>
@@ -18,11 +22,13 @@ npm install nomic-bitcoin
 
 ## Interchain Deposits
 
+### nBTC on IBC-Compatible Chains
+
 ```typescript
 import { generateDepositAddress } from 'nomic-bitcoin'
 
 let depositInfo = await generateDepositAddress({
-  relayers: ['https://relayer.nomic-testnet.mappum.io:8443'],
+  relayers: ['https://my-bitcoin-relayer.example.com:1234'],
   channel: 'channel-0', // IBC channel ID on Nomic
   network: 'testnet',
   receiver: 'cosmos1...', // bech32 address of the depositing user
@@ -42,6 +48,30 @@ console.log(depositInfo)
 
 Bitcoin sent to `bitcoinAddress` before the expiration date will be automatically IBC-transferred over the specified channel and should appear in the user's account with no further interaction required.
 
+### nBTC on Ethereum
+
+```typescript
+import { generateDepositAddressEth } from 'nomic-bitcoin'
+
+let depositInfo = await generateDepositAddressEth({
+  relayers: ['https://my-bitcoin-relayer.example.com:1234'],
+  bitcoinNetwork: 'testnet',
+  receiver: '0x...', // an Ethereum address
+
+})
+
+console.log(depositInfo)
+/*
+{
+  code: 0,
+  bitcoinAddress: "tb1q73yhgsjedp2uuwjew6zcj0kurryyue2zqjdgn5g5cf7w4krwgtusgsmpku",
+  expirationTimeMs: 1624296000000,
+  bridgeFeeRate: 0.015,
+  minerFeeRate: 0.0001,
+}
+*/
+```
+Additional Ethereum functionality including depositing to a contract call and support for other EVM chains will be released in a future upgrade.
 
 ### QR code
 
@@ -90,7 +120,8 @@ if (depositInfo.code === 0) {
 }
 ```
 
-It is critical that the user understands that deposits to this Bitcoin address **will be lost** if they are sent after the expiration time. Addresses typically expire 4-5 days after creation. Do not save the address for later use, and warn the user not to reuse the address, even though multiple deposits to the same address will work as expected before the address expires.
+> [!WARNING]
+>It is critical that the user understands that deposits to this Bitcoin address **will be lost** if they are sent after the expiration time. Addresses typically expire 4-5 days after creation. Do not save the address for later use, and warn the user not to reuse the address, even though multiple deposits to the same address will work as expected before the address expires.
 
 ### Fee rates
 
@@ -123,13 +154,16 @@ let pendingDeposits = await getPendingDeposits(relayers, address)
 console.log(pendingDeposits) // [{ confirmations: 2, txid: '...', vout: 1, amount: 100000, height: 812000 }]
 ```
 
+### Bitcoin Relayers
+
+Interchain Deposits require communication with Bitcoin relayers to relay generated deposit addresses to Nomic. Where possible multiple relayers should be included, 2/3rds of the relayers must relay the generated deposit addresses for a successful deposit. Running a relayer is part of running a Nomic node, see [Bitcoin Relayer](https://docs.nomic.io/00-03-bitcoin-relayer.html) for more information.
+
+> [!WARNING]
+> The set of relayers used by your app should be selected with care. Unsucessful relaying of generated deposit addresses will result in loss of deposited funds.
+
 ### Usage guidelines
 
-- Include multiple relayers. See [the Nomic docs](https://github.com/nomic-io/nomic) for information about running a relayer.
 - Display a deposit address QR code on desktop for mobile Bitcoin wallets.
-- Communicate bridge and miner fees.
 - Display the deposit address expiration time.
-
-## Status
-
-Interchain Deposits and Withdrawls will be enabled in a release pushing October 27, 2023 with an estimated activation on October 30, 2023.
+- Communicate bridge and miner fees.
+- Show pending deposits to users to avoid user concern during processing times.
