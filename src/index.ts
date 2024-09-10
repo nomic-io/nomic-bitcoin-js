@@ -267,6 +267,11 @@ export interface IbcDepositOptions {
   memo?: string
 }
 
+export interface EthDepositOptions {
+  receiver: string
+  ethereumNetwork?: 'sepolia'
+}
+
 export interface RawDepositOptions {
   commitmentBytes: Buffer
   broadcastBytes: Buffer
@@ -275,7 +280,7 @@ export interface RawDepositOptions {
 export interface BaseDepositOptions {
   relayers: string[]
   requestTimeoutMs?: number
-  network?: BitcoinNetwork
+  bitcoinNetwork?: BitcoinNetwork
   successThreshold?: number
 }
 
@@ -398,7 +403,7 @@ async function generateAndBroadcast(
         return getDepositAddress(
           relayer,
           sigset,
-          opts.network,
+          opts.bitcoinNetwork,
           commitmentBytes,
           broadcastBytes,
         )
@@ -420,7 +425,7 @@ async function generateAndBroadcast(
   }
 }
 
-export async function generateDepositAddress(
+export async function generateDepositAddressIbc(
   opts: BaseDepositOptions & IbcDepositOptions,
 ): Promise<DepositResult> {
   try {
@@ -438,6 +443,16 @@ export async function generateDepositAddress(
       reason: (e as any).toString(),
     }
   }
+}
+
+export async function generateDepositAddressEth(
+  opts: BaseDepositOptions & EthDepositOptions,
+): Promise<DepositResult> {
+  let address = opts.receiver
+  let commitmentBytes = Buffer.from(address.replace('0x', ''), 'hex')
+  let broadcastBytes = Buffer.concat([Buffer.from([2, 0]), commitmentBytes])
+
+  return await generateAndBroadcast(opts, commitmentBytes, broadcastBytes)
 }
 
 export async function generateDepositAddressRaw(
