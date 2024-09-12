@@ -173,7 +173,7 @@ let dest = buildDestination({
 
 ### Bitcoin Relayers
 
-Interchain Deposits require communication with Bitcoin relayers to relay generated deposit addresses to Nomic. Where possible multiple relayers should be included, 2/3rds of the relayers must relay the generated deposit addresses for a successful deposit. Running a relayer is part of running a Nomic node, see [Bitcoin Relayer](https://docs.nomic.io/00-03-bitcoin-relayer.html) for more information.
+Interchain Deposits require communication with Bitcoin relayers to relay generated deposit addresses to Nomic. Where possible multiple relayers should be included, 2/3rds of the relayers must relay the generated deposit addresses for a successful deposit. Running a relayer is part of running a Nomic node, see [Bitcoin Relayer](https://docs.nomic.io/v/network/bitcoin-relayer) for more information.
 
 > [!WARNING]
 > The set of relayers used by your app should be selected with care. Unsucessful relaying of generated deposit addresses will result in loss of deposited funds.
