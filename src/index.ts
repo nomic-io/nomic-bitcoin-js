@@ -387,6 +387,7 @@ async function generateAndBroadcast(
 ): Promise<DepositResult> {
   try {
     let sigset = await getConsensusSigset(opts)
+    commitmentBytes = Buffer.concat([Buffer.from([0]), sha256(broadcastBytes)])
     if (!sigset.depositsEnabled) {
       return {
         code: 2,
@@ -449,8 +450,12 @@ export async function generateDepositAddressEth(
   opts: BaseDepositOptions & EthDepositOptions,
 ): Promise<DepositResult> {
   let address = opts.receiver
-  let commitmentBytes = Buffer.from(address.replace('0x', ''), 'hex')
-  let broadcastBytes = Buffer.concat([Buffer.from([2, 0]), commitmentBytes])
+  let addrBytes = Buffer.from(address.replace('0x', ''), 'hex')
+  let broadcastBytes = Buffer.concat([Buffer.from([4, 0]), addrBytes])
+  let commitmentBytes = Buffer.concat([
+    Buffer.from([0]),
+    sha256(broadcastBytes),
+  ])
 
   return await generateAndBroadcast(opts, commitmentBytes, broadcastBytes)
 }
@@ -463,6 +468,14 @@ export async function generateDepositAddressRaw(
     opts.commitmentBytes,
     opts.broadcastBytes,
   )
+}
+
+export interface DestinationOpts {
+  bitcoinAddress: string
+}
+
+export function buildDestination(destOpts: DestinationOpts) {
+  return JSON.stringify({ type: 'bitcoin', data: destOpts.bitcoinAddress })
 }
 
 export * as style from './style'
