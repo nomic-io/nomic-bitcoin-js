@@ -154,6 +154,23 @@ let pendingDeposits = await getPendingDeposits(relayers, address)
 console.log(pendingDeposits) // [{ confirmations: 2, txid: '...', vout: 1, amount: 100000, height: 812000 }]
 ```
 
+### Destinations
+
+Nomic uses a JSON-based destination commitment structure for incoming nBTC
+transfers from Ethereum or IBC chains.
+
+For example, to withdraw nBTC directly as Bitcoin:
+```typescript
+import { buildDestination } from 'nomic-bitcoin'
+
+let dest = buildDestination({
+  bitcoinAddress: 'tb1...',
+})
+
+// Use `dest` as an ICS-20 token transfer memo,
+// or argument to the Ethereum bridge contract call.
+```
+
 ### Bitcoin Relayers
 
 Interchain Deposits require communication with Bitcoin relayers to relay generated deposit addresses to Nomic. Where possible multiple relayers should be included, 2/3rds of the relayers must relay the generated deposit addresses for a successful deposit. Running a relayer is part of running a Nomic node, see [Bitcoin Relayer](https://docs.nomic.io/00-03-bitcoin-relayer.html) for more information.
