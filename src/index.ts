@@ -267,6 +267,11 @@ export interface IbcDepositOptions {
   memo?: string
 }
 
+export interface EthDepositOptions {
+  receiver: string
+  ethereumNetwork?: 'sepolia'
+}
+
 export interface RawDepositOptions {
   commitmentBytes: Buffer
   broadcastBytes: Buffer
@@ -275,7 +280,7 @@ export interface RawDepositOptions {
 export interface BaseDepositOptions {
   relayers: string[]
   requestTimeoutMs?: number
-  network?: BitcoinNetwork
+  bitcoinNetwork?: BitcoinNetwork
   successThreshold?: number
 }
 
@@ -382,6 +387,7 @@ async function generateAndBroadcast(
 ): Promise<DepositResult> {
   try {
     let sigset = await getConsensusSigset(opts)
+    commitmentBytes = Buffer.concat([Buffer.from([0]), sha256(broadcastBytes)])
     if (!sigset.depositsEnabled) {
       return {
         code: 2,
@@ -398,7 +404,7 @@ async function generateAndBroadcast(
         return getDepositAddress(
           relayer,
           sigset,
-          opts.network,
+          opts.bitcoinNetwork,
           commitmentBytes,
           broadcastBytes,
         )
@@ -420,7 +426,7 @@ async function generateAndBroadcast(
   }
 }
 
-export async function generateDepositAddress(
+export async function generateDepositAddressIbc(
   opts: BaseDepositOptions & IbcDepositOptions,
 ): Promise<DepositResult> {
   try {
@@ -440,6 +446,20 @@ export async function generateDepositAddress(
   }
 }
 
+export async function generateDepositAddressEth(
+  opts: BaseDepositOptions & EthDepositOptions,
+): Promise<DepositResult> {
+  let address = opts.receiver
+  let addrBytes = Buffer.from(address.replace('0x', ''), 'hex')
+  let broadcastBytes = Buffer.concat([Buffer.from([4, 0]), addrBytes])
+  let commitmentBytes = Buffer.concat([
+    Buffer.from([0]),
+    sha256(broadcastBytes),
+  ])
+
+  return await generateAndBroadcast(opts, commitmentBytes, broadcastBytes)
+}
+
 export async function generateDepositAddressRaw(
   opts: BaseDepositOptions & RawDepositOptions,
 ): Promise<DepositResult> {
@@ -448,6 +468,14 @@ export async function generateDepositAddressRaw(
     opts.commitmentBytes,
     opts.broadcastBytes,
   )
+}
+
+export interface DestinationOpts {
+  bitcoinAddress: string
+}
+
+export function buildDestination(destOpts: DestinationOpts) {
+  return JSON.stringify({ type: 'bitcoin', data: destOpts.bitcoinAddress })
 }
 
 export * as style from './style'
