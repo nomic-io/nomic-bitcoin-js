@@ -45,12 +45,10 @@ function encode(dest: IbcDest) {
   buf = Buffer.concat([buf, Buffer.from(dest.sourcePort)])
   buf = Buffer.concat([buf, Buffer.from([dest.sourceChannel.length])])
   buf = Buffer.concat([buf, Buffer.from(dest.sourceChannel)])
-  let receiverLen = Buffer.alloc(4)
-  receiverLen.writeUInt32LE(dest.receiver.length, 0)
+  let receiverLen = Buffer.from([dest.receiver.length])
   buf = Buffer.concat([buf, receiverLen])
   buf = Buffer.concat([buf, Buffer.from(dest.receiver)])
-  let senderLen = Buffer.alloc(4)
-  senderLen.writeUInt32LE(dest.sender.length, 0)
+  let senderLen = Buffer.from([dest.sender.length])
   buf = Buffer.concat([buf, senderLen])
   buf = Buffer.concat([buf, Buffer.from(dest.sender)])
   let timeout = Buffer.alloc(8)
@@ -273,7 +271,6 @@ export interface EthDepositOptions {
 }
 
 export interface RawDepositOptions {
-  commitmentBytes: Buffer
   broadcastBytes: Buffer
 }
 
@@ -382,12 +379,14 @@ async function getConsensusSigset(opts: BaseDepositOptions) {
 
 async function generateAndBroadcast(
   opts: BaseDepositOptions,
-  commitmentBytes: Buffer,
   broadcastBytes: Buffer,
 ): Promise<DepositResult> {
   try {
     let sigset = await getConsensusSigset(opts)
-    commitmentBytes = Buffer.concat([Buffer.from([0]), sha256(broadcastBytes)])
+    let commitmentBytes = Buffer.concat([
+      Buffer.from([0]),
+      sha256(broadcastBytes),
+    ])
     if (!sigset.depositsEnabled) {
       return {
         code: 2,
@@ -431,13 +430,11 @@ export async function generateDepositAddressIbc(
 ): Promise<DepositResult> {
   try {
     let ibcDest = makeIbcDest(opts)
-
     let ibcDestBytes = encode(ibcDest)
 
-    let commitmentBytes = sha256(ibcDestBytes)
     let broadcastBytes = Buffer.concat([Buffer.from([1]), ibcDestBytes])
 
-    return await generateAndBroadcast(opts, commitmentBytes, broadcastBytes)
+    return await generateAndBroadcast(opts, broadcastBytes)
   } catch (e) {
     return {
       code: 1,
@@ -452,22 +449,14 @@ export async function generateDepositAddressEth(
   let address = opts.receiver
   let addrBytes = Buffer.from(address.replace('0x', ''), 'hex')
   let broadcastBytes = Buffer.concat([Buffer.from([4, 0]), addrBytes])
-  let commitmentBytes = Buffer.concat([
-    Buffer.from([0]),
-    sha256(broadcastBytes),
-  ])
 
-  return await generateAndBroadcast(opts, commitmentBytes, broadcastBytes)
+  return await generateAndBroadcast(opts, broadcastBytes)
 }
 
 export async function generateDepositAddressRaw(
   opts: BaseDepositOptions & RawDepositOptions,
 ): Promise<DepositResult> {
-  return await generateAndBroadcast(
-    opts,
-    opts.commitmentBytes,
-    opts.broadcastBytes,
-  )
+  return await generateAndBroadcast(opts, opts.broadcastBytes)
 }
 
 export interface DestinationOpts {
