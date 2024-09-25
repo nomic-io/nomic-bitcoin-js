@@ -40,7 +40,7 @@ export interface DepositInfo {
   confirmations: number
 }
 
-function encode(dest: IbcDest) {
+function encodeIbc(dest: IbcDest) {
   let buf = Buffer.from([dest.sourcePort.length])
   buf = Buffer.concat([buf, Buffer.from(dest.sourcePort)])
   buf = Buffer.concat([buf, Buffer.from([dest.sourceChannel.length])])
@@ -267,7 +267,7 @@ export interface IbcDepositOptions {
 
 export interface EthDepositOptions {
   receiver: string
-  ethereumNetwork?: 'sepolia'
+  ethereumNetwork: 'sepolia' | 'berachain' | 'holesky'
 }
 
 export interface RawDepositOptions {
@@ -430,7 +430,7 @@ export async function generateDepositAddressIbc(
 ): Promise<DepositResult> {
   try {
     let ibcDest = makeIbcDest(opts)
-    let ibcDestBytes = encode(ibcDest)
+    let ibcDestBytes = encodeIbc(ibcDest)
 
     let broadcastBytes = Buffer.concat([Buffer.from([1]), ibcDestBytes])
 
@@ -443,12 +443,38 @@ export async function generateDepositAddressIbc(
   }
 }
 
+export const ethNetworks = {
+  sepolia: {
+    chainId: 11155111,
+    bridge: '0x794bdA49337C667ED03265618821b944Ed11bcED',
+  },
+  berachain: {
+    chainId: 80084,
+    bridge: '0xea55b1E6df415b96C194146abCcE85e6f811CAb7',
+  },
+  holesky: {
+    chainId: 17000,
+    bridge: '0x936366c13b43Ab6eC8f70A69038E9187fED0Cd1e',
+  },
+}
+
 export async function generateDepositAddressEth(
   opts: BaseDepositOptions & EthDepositOptions,
 ): Promise<DepositResult> {
-  let address = opts.receiver
-  let addrBytes = Buffer.from(address.replace('0x', ''), 'hex')
-  let broadcastBytes = Buffer.concat([Buffer.from([4, 0]), addrBytes])
+  let network = ethNetworks[opts.ethereumNetwork]
+
+  let addrBytes = Buffer.from(opts.receiver.replace('0x', ''), 'hex')
+  let ethAccountDestPrefix = Buffer.from([4])
+  let chainIdBytes = Buffer.alloc(4)
+  chainIdBytes.writeUInt32BE(network.chainId)
+  let ethNetworkBytes = Buffer.from(network.bridge.replace('0x', ''), 'hex')
+
+  let broadcastBytes = Buffer.concat([
+    ethAccountDestPrefix,
+    chainIdBytes,
+    ethNetworkBytes,
+    addrBytes,
+  ])
 
   return await generateAndBroadcast(opts, broadcastBytes)
 }
