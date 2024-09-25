@@ -48,7 +48,7 @@ console.log(depositInfo)
 
 Bitcoin sent to `bitcoinAddress` before the expiration date will be automatically IBC-transferred over the specified channel and should appear in the user's account with no further interaction required.
 
-### nBTC on Ethereum
+### nBTC on EVM-based chains
 
 ```typescript
 import { generateDepositAddressEth } from 'nomic-bitcoin'
