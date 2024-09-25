@@ -48,7 +48,7 @@ console.log(depositInfo)
 
 Bitcoin sent to `bitcoinAddress` before the expiration date will be automatically IBC-transferred over the specified channel and should appear in the user's account with no further interaction required.
 
-### nBTC on Ethereum
+### nBTC on EVM-based chains
 
 ```typescript
 import { generateDepositAddressEth } from 'nomic-bitcoin'
@@ -56,7 +56,7 @@ import { generateDepositAddressEth } from 'nomic-bitcoin'
 let depositInfo = await generateDepositAddressEth({
   relayers: ['https://my-bitcoin-relayer.example.com:1234'],
   bitcoinNetwork: 'testnet',
-  ethereumNetwork: 'sepolia',
+  ethereumNetwork: 'sepolia', // 'sepolia' | 'holesky' | 'berachain'
   receiver: '0x...', // an Ethereum address
 })
 
@@ -71,7 +71,8 @@ console.log(depositInfo)
 }
 */
 ```
-Additional Ethereum functionality including depositing to a contract call and support for other EVM chains will be released in a future upgrade.
+Additional Ethereum functionality, including deposit addresses which commit to contract
+calls and connections to more EVM chains, will be included in future releases.
 
 ### QR code
 
