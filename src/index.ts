@@ -4,6 +4,12 @@ import { fromBech32, toBech32 } from '@cosmjs/encoding'
 import { create } from './qrcode'
 import { Buffer } from 'buffer'
 
+interface BridgeFeeOverrides {
+  ibc: {
+    [channel: string]: number
+  }
+}
+
 interface SigSet {
   signatories: Array<{ voting_power: number; pubkey: number[] }>
   index: number
@@ -11,6 +17,7 @@ interface SigSet {
   minerFeeRate: number // sats per deposit
   depositsEnabled: boolean
   threshold: [number, number]
+  bridgeFeeOverrides: BridgeFeeOverrides
 }
 
 interface IbcDest {
@@ -23,22 +30,23 @@ interface IbcDest {
 }
 
 interface PendingDeposit {
-  deposit: {
-    txid: string
-    vout: number
-    amount: number
-    height: number | null
-  }
+  deposit: Deposit
   confirmations: number
 }
 
-export interface DepositInfo {
+interface Deposit {
   txid: string
   vout: number
   amount: number
   height: number | null
-  confirmations: number
+
+  // Optional for compatibility with older relayers:
+  sigsetIndex?: number
+  bridgeFeeRate?: number
+  minerFeeRate?: number
 }
+
+export type DepositInfo = Deposit & { confirmations: number }
 
 function encodeIbc(dest: IbcDest) {
   let buf = Buffer.from([dest.sourcePort.length])
@@ -79,18 +87,11 @@ export async function getPendingDeposits(
   let info: PendingDeposit[] = await fetch(
     `${relayer}/pending_deposits?receiver=${receiver}`,
   ).then((res) => res.json())
-  let deposits: DepositInfo[] = []
-  for (let { deposit, confirmations } of info) {
-    deposits.push({
-      confirmations,
-      txid: deposit.txid,
-      vout: deposit.vout,
-      amount: deposit.amount,
-      height: deposit.height,
-    })
-  }
 
-  return deposits
+  return info.map(({ deposit, confirmations }) => ({
+    confirmations,
+    ...deposit,
+  }))
 }
 
 function clz64(n: bigint) {
@@ -212,6 +213,10 @@ function makeIbcDest(opts: IbcDepositOptions): IbcDest {
     throw new Error('Sender must be a Nomic address')
   }
 
+  if (ibcDest.sender.length !== 44) {
+    throw new Error('Sender must be a 20-byte Nomic address')
+  }
+
   let parts = ibcDest.sourceChannel.split('-')
   if (parts.length !== 2 || parts[0] !== 'channel' || isNaN(Number(parts[1]))) {
     throw new Error('Invalid source channel')
@@ -290,6 +295,7 @@ export interface DepositSuccess {
   expirationTimeMs: number
   bridgeFeeRate: number
   minerFeeRate: number // sats per deposit
+  sigset: SigSet
 }
 
 export interface DepositFailureOther {
@@ -374,7 +380,14 @@ async function getConsensusSigset(opts: BaseDepositOptions) {
     getSigset,
   )
 
-  return JSON.parse(consensusRelayerResponse) as SigSet
+  let sigset = JSON.parse(consensusRelayerResponse)
+
+  // Backwards compatibility in case of older relayer:
+  if (!sigset.bridgeFeeOverrides) {
+    sigset.bridgeFeeOverrides = { ibc: {} }
+  }
+
+  return sigset as SigSet
 }
 
 async function generateAndBroadcast(
@@ -416,6 +429,7 @@ async function generateAndBroadcast(
       expirationTimeMs: Date.now() + 5 * oneDaySeconds * 1000,
       bridgeFeeRate: sigset.bridgeFeeRate,
       minerFeeRate: sigset.minerFeeRate,
+      sigset,
     }
   } catch (e) {
     return {
@@ -434,7 +448,15 @@ export async function generateDepositAddressIbc(
 
     let broadcastBytes = Buffer.concat([Buffer.from([1]), ibcDestBytes])
 
-    return await generateAndBroadcast(opts, broadcastBytes)
+    let result = await generateAndBroadcast(opts, broadcastBytes)
+    if (
+      result.code === 0 &&
+      opts.channel in result.sigset.bridgeFeeOverrides.ibc
+    ) {
+      result.bridgeFeeRate = result.sigset.bridgeFeeOverrides.ibc[opts.channel]
+    }
+
+    return result
   } catch (e) {
     return {
       code: 1,
