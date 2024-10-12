@@ -42,6 +42,7 @@ console.log(depositInfo)
   expirationTimeMs: 1624296000000,
   bridgeFeeRate: 0.015,
   minerFeeRate: 0.0001,
+  sigset: { ... }
 }
 */
 ```
@@ -68,6 +69,7 @@ console.log(depositInfo)
   expirationTimeMs: 1624296000000,
   bridgeFeeRate: 0.015,
   minerFeeRate: 0.0001,
+  sigset: { ... }
 }
 */
 ```
@@ -152,7 +154,7 @@ You can query all pending deposits by receiver address with `getPendingDeposits`
 import { getPendingDeposits } from 'nomic-bitcoin'
 
 let pendingDeposits = await getPendingDeposits(relayers, address)
-console.log(pendingDeposits) // [{ confirmations: 2, txid: '...', vout: 1, amount: 100000, height: 812000 }]
+console.log(pendingDeposits) // [{ confirmations: 2, txid: '...', vout: 1, amount: 100000, height: 812000, bridgeFeeRate: 0.015, minerFeeRate: 0.0001, sigsetIndex: 5300 }]
 ```
 
 ### Destinations

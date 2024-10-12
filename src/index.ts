@@ -4,13 +4,49 @@ import { fromBech32, toBech32 } from '@cosmjs/encoding'
 import { create } from './qrcode'
 import { Buffer } from 'buffer'
 
-interface SigSet {
+interface BridgeFeeOverrides {
+  ibc: {
+    [channel: string]: number
+  }
+}
+
+export interface BitcoinDest {
+  type: 'bitcoin'
+  data: string
+}
+
+export interface NativeAccountDest {
+  type: 'nativeAccount'
+  address: string
+}
+
+export interface RewardPoolDest {
+  type: 'rewardPool'
+}
+
+export interface EthAccountDest {
+  type: 'ethAccount'
+  address: string
+}
+
+export type Dest =
+  | BitcoinDest
+  | NativeAccountDest
+  | RewardPoolDest
+  | EthAccountDest
+
+export interface Checkpoint {
   signatories: Array<{ voting_power: number; pubkey: number[] }>
   index: number
   bridgeFeeRate: number
   minerFeeRate: number // sats per deposit
   depositsEnabled: boolean
   threshold: [number, number]
+  bridgeFeeOverrides: BridgeFeeOverrides
+  txid: string | null
+  signedAtBtcHeight: number | null
+  createTime: number
+  pending: Array<[Dest, number]>
 }
 
 interface IbcDest {
@@ -23,22 +59,23 @@ interface IbcDest {
 }
 
 interface PendingDeposit {
-  deposit: {
-    txid: string
-    vout: number
-    amount: number
-    height: number | null
-  }
+  deposit: Deposit
   confirmations: number
 }
 
-export interface DepositInfo {
+interface Deposit {
   txid: string
   vout: number
   amount: number
   height: number | null
-  confirmations: number
+
+  // Optional for compatibility with older relayers:
+  sigsetIndex?: number
+  bridgeFeeRate?: number
+  minerFeeRate?: number
 }
+
+export type DepositInfo = Deposit & { confirmations: number }
 
 function encodeIbc(dest: IbcDest) {
   let buf = Buffer.from([dest.sourcePort.length])
@@ -60,15 +97,19 @@ function encodeIbc(dest: IbcDest) {
   return buf
 }
 
-function presentVp(sigset: SigSet) {
+function presentVp(sigset: Checkpoint) {
   return sigset.signatories.reduce(
     (acc, cur) => acc + BigInt(cur.voting_power),
     0n,
   )
 }
 
-async function getSigset(relayer: string) {
-  return await fetch(`${relayer}/sigset`).then((res) => res.text())
+async function getSigset(relayer: string, sigsetIndex?: number) {
+  let url = `${relayer}/sigset`
+  if (typeof sigsetIndex === 'number') {
+    url += `?index=${sigsetIndex}`
+  }
+  return await fetch(url).then((res) => res.text())
 }
 
 export async function getPendingDeposits(
@@ -79,18 +120,11 @@ export async function getPendingDeposits(
   let info: PendingDeposit[] = await fetch(
     `${relayer}/pending_deposits?receiver=${receiver}`,
   ).then((res) => res.json())
-  let deposits: DepositInfo[] = []
-  for (let { deposit, confirmations } of info) {
-    deposits.push({
-      confirmations,
-      txid: deposit.txid,
-      vout: deposit.vout,
-      amount: deposit.amount,
-      height: deposit.height,
-    })
-  }
 
-  return deposits
+  return info.map(({ deposit, confirmations }) => ({
+    confirmations,
+    ...deposit,
+  }))
 }
 
 function clz64(n: bigint) {
@@ -100,7 +134,7 @@ function clz64(n: bigint) {
   return 64 - n.toString(2).length
 }
 
-function getTruncation(sigset: SigSet, targetPrecision: number) {
+function getTruncation(sigset: Checkpoint, targetPrecision: number) {
   let vp = presentVp(sigset)
   let vpBits = 64 - clz64(vp)
   if (vpBits < targetPrecision) {
@@ -120,7 +154,7 @@ function op(name: string) {
   return btc.script.OPS[name]
 }
 
-function redeemScript(sigset: SigSet, dest: Buffer) {
+function redeemScript(sigset: Checkpoint, dest: Buffer) {
   let truncation = BigInt(getTruncation(sigset, 23))
   let [numerator, denominator] = sigset.threshold
 
@@ -212,6 +246,10 @@ function makeIbcDest(opts: IbcDepositOptions): IbcDest {
     throw new Error('Sender must be a Nomic address')
   }
 
+  if (ibcDest.sender.length !== 44) {
+    throw new Error('Sender must be a 20-byte Nomic address')
+  }
+
   let parts = ibcDest.sourceChannel.split('-')
   if (parts.length !== 2 || parts[0] !== 'channel' || isNaN(Number(parts[1]))) {
     throw new Error('Invalid source channel')
@@ -234,7 +272,7 @@ function toNetwork(network: BitcoinNetwork | undefined) {
 
 async function getDepositAddress(
   relayer: string,
-  sigset: SigSet,
+  sigset: Checkpoint,
   network: BitcoinNetwork | undefined,
   commitmentBytes: Buffer,
   broadcastBytes: Buffer,
@@ -290,6 +328,7 @@ export interface DepositSuccess {
   expirationTimeMs: number
   bridgeFeeRate: number
   minerFeeRate: number // sats per deposit
+  sigset: Checkpoint
 }
 
 export interface DepositFailureOther {
@@ -365,16 +404,26 @@ function parseBaseOptions(opts: BaseDepositOptions) {
   return { requestTimeoutMs, successThresholdCount }
 }
 
-async function getConsensusSigset(opts: BaseDepositOptions) {
+export async function getCheckpoint(
+  opts: BaseDepositOptions,
+  sigsetIndex?: number,
+) {
   let { requestTimeoutMs, successThresholdCount } = parseBaseOptions(opts)
   let consensusRelayerResponse: string = await consensusReq(
     opts.relayers,
     successThresholdCount,
     requestTimeoutMs,
-    getSigset,
+    (relayer: string) => getSigset(relayer, sigsetIndex),
   )
 
-  return JSON.parse(consensusRelayerResponse) as SigSet
+  let sigset = JSON.parse(consensusRelayerResponse)
+
+  // Backwards compatibility in case of older relayer:
+  if (!sigset.bridgeFeeOverrides) {
+    sigset.bridgeFeeOverrides = { ibc: {} }
+  }
+
+  return sigset as Checkpoint
 }
 
 async function generateAndBroadcast(
@@ -382,7 +431,7 @@ async function generateAndBroadcast(
   broadcastBytes: Buffer,
 ): Promise<DepositResult> {
   try {
-    let sigset = await getConsensusSigset(opts)
+    let sigset = await getCheckpoint(opts)
     let commitmentBytes = Buffer.concat([
       Buffer.from([0]),
       sha256(broadcastBytes),
@@ -416,6 +465,7 @@ async function generateAndBroadcast(
       expirationTimeMs: Date.now() + 5 * oneDaySeconds * 1000,
       bridgeFeeRate: sigset.bridgeFeeRate,
       minerFeeRate: sigset.minerFeeRate,
+      sigset,
     }
   } catch (e) {
     return {
@@ -434,7 +484,15 @@ export async function generateDepositAddressIbc(
 
     let broadcastBytes = Buffer.concat([Buffer.from([1]), ibcDestBytes])
 
-    return await generateAndBroadcast(opts, broadcastBytes)
+    let result = await generateAndBroadcast(opts, broadcastBytes)
+    if (
+      result.code === 0 &&
+      opts.channel in result.sigset.bridgeFeeOverrides.ibc
+    ) {
+      result.bridgeFeeRate = result.sigset.bridgeFeeOverrides.ibc[opts.channel]
+    }
+
+    return result
   } catch (e) {
     return {
       code: 1,
