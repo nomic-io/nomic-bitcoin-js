@@ -10,7 +10,32 @@ interface BridgeFeeOverrides {
   }
 }
 
-interface SigSet {
+export interface BitcoinDest {
+  type: 'bitcoin'
+  data: string
+}
+
+export interface NativeAccountDest {
+  type: 'nativeAccount'
+  address: string
+}
+
+export interface RewardPoolDest {
+  type: 'rewardPool'
+}
+
+export interface EthAccountDest {
+  type: 'ethAccount'
+  address: string
+}
+
+export type Dest =
+  | BitcoinDest
+  | NativeAccountDest
+  | RewardPoolDest
+  | EthAccountDest
+
+export interface Checkpoint {
   signatories: Array<{ voting_power: number; pubkey: number[] }>
   index: number
   bridgeFeeRate: number
@@ -18,6 +43,10 @@ interface SigSet {
   depositsEnabled: boolean
   threshold: [number, number]
   bridgeFeeOverrides: BridgeFeeOverrides
+  txid: string | null
+  signedAtBtcHeight: number | null
+  createTime: number
+  pending: Array<[Dest, number]>
 }
 
 interface IbcDest {
@@ -68,15 +97,19 @@ function encodeIbc(dest: IbcDest) {
   return buf
 }
 
-function presentVp(sigset: SigSet) {
+function presentVp(sigset: Checkpoint) {
   return sigset.signatories.reduce(
     (acc, cur) => acc + BigInt(cur.voting_power),
     0n,
   )
 }
 
-async function getSigset(relayer: string) {
-  return await fetch(`${relayer}/sigset`).then((res) => res.text())
+async function getSigset(relayer: string, sigsetIndex?: number) {
+  let url = `${relayer}/sigset`
+  if (typeof sigsetIndex === 'number') {
+    url += `?index=${sigsetIndex}`
+  }
+  return await fetch(url).then((res) => res.text())
 }
 
 export async function getPendingDeposits(
@@ -101,7 +134,7 @@ function clz64(n: bigint) {
   return 64 - n.toString(2).length
 }
 
-function getTruncation(sigset: SigSet, targetPrecision: number) {
+function getTruncation(sigset: Checkpoint, targetPrecision: number) {
   let vp = presentVp(sigset)
   let vpBits = 64 - clz64(vp)
   if (vpBits < targetPrecision) {
@@ -121,7 +154,7 @@ function op(name: string) {
   return btc.script.OPS[name]
 }
 
-function redeemScript(sigset: SigSet, dest: Buffer) {
+function redeemScript(sigset: Checkpoint, dest: Buffer) {
   let truncation = BigInt(getTruncation(sigset, 23))
   let [numerator, denominator] = sigset.threshold
 
@@ -239,7 +272,7 @@ function toNetwork(network: BitcoinNetwork | undefined) {
 
 async function getDepositAddress(
   relayer: string,
-  sigset: SigSet,
+  sigset: Checkpoint,
   network: BitcoinNetwork | undefined,
   commitmentBytes: Buffer,
   broadcastBytes: Buffer,
@@ -295,7 +328,7 @@ export interface DepositSuccess {
   expirationTimeMs: number
   bridgeFeeRate: number
   minerFeeRate: number // sats per deposit
-  sigset: SigSet
+  sigset: Checkpoint
 }
 
 export interface DepositFailureOther {
@@ -371,13 +404,16 @@ function parseBaseOptions(opts: BaseDepositOptions) {
   return { requestTimeoutMs, successThresholdCount }
 }
 
-async function getConsensusSigset(opts: BaseDepositOptions) {
+export async function getCheckpoint(
+  opts: BaseDepositOptions,
+  sigsetIndex?: number,
+) {
   let { requestTimeoutMs, successThresholdCount } = parseBaseOptions(opts)
   let consensusRelayerResponse: string = await consensusReq(
     opts.relayers,
     successThresholdCount,
     requestTimeoutMs,
-    getSigset,
+    (relayer: string) => getSigset(relayer, sigsetIndex),
   )
 
   let sigset = JSON.parse(consensusRelayerResponse)
@@ -387,7 +423,7 @@ async function getConsensusSigset(opts: BaseDepositOptions) {
     sigset.bridgeFeeOverrides = { ibc: {} }
   }
 
-  return sigset as SigSet
+  return sigset as Checkpoint
 }
 
 async function generateAndBroadcast(
@@ -395,7 +431,7 @@ async function generateAndBroadcast(
   broadcastBytes: Buffer,
 ): Promise<DepositResult> {
   try {
-    let sigset = await getConsensusSigset(opts)
+    let sigset = await getCheckpoint(opts)
     let commitmentBytes = Buffer.concat([
       Buffer.from([0]),
       sha256(broadcastBytes),
