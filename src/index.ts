@@ -238,10 +238,6 @@ function makeIbcDest(opts: IbcDepositOptions): IbcDest {
     timeoutTimestamp,
   }
 
-  if (ibcDest.memo.length > 255) {
-    throw new Error('Memo must be less than 256 characters')
-  }
-
   if (!ibcDest.sender.startsWith('nomic1')) {
     throw new Error('Sender must be a Nomic address')
   }
