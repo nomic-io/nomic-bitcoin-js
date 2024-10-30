@@ -91,7 +91,9 @@ function encodeIbc(dest: IbcDest) {
   let timeout = Buffer.alloc(8)
   timeout.writeBigUInt64BE(dest.timeoutTimestamp, 0)
   buf = Buffer.concat([buf, timeout])
-  buf = Buffer.concat([buf, Buffer.from([dest.memo.length])])
+  let memoLen = Buffer.alloc(2)
+  memoLen.writeUInt16BE(dest.memo.length)
+  buf = Buffer.concat([buf, memoLen])
   buf = Buffer.concat([buf, Buffer.from(dest.memo)])
 
   return buf
